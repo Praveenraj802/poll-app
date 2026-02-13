@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const mongoose = require('mongoose');
 const Poll = require('../models/Poll');
+const auth = require('../middleware/auth');
 
 /**
  * @route   GET /api/polls
@@ -16,7 +17,7 @@ router.get('/', async (req, res) => {
 });
 
 // Create a new poll
-router.post("/create", async (req, res) => {
+router.post("/create", auth, async (req, res) => {
     try {
         const { question, options } = req.body;
         console.log("Creating poll with:", { question, options });
@@ -34,7 +35,11 @@ router.post("/create", async (req, res) => {
         // Format options to match the schema (array of { text, votes })
         const formattedOptions = options.map(opt => ({ text: opt, votes: 0 }));
 
-        const newPoll = new Poll({ question, options: formattedOptions });
+        const newPoll = new Poll({
+            question,
+            options: formattedOptions,
+            creator: req.user // From auth middleware
+        });
         await newPoll.save();
 
         res.status(201).json({ message: "Poll created successfully!", poll: newPoll });
@@ -122,28 +127,34 @@ router.post('/:id/remove-vote', async (req, res) => {
     }
 });
 
-/**
- * @route   DELETE /api/polls/:id
- * @desc    Delete a poll entirely
- */
-router.delete('/:id', async (req, res) => {
+// Delete a poll entirely
+router.delete('/:id', auth, async (req, res) => {
     try {
-        const result = await Poll.findByIdAndDelete(req.params.id);
-        if (!result) return res.status(404).json('Poll not found');
+        const poll = await Poll.findById(req.params.id);
+        if (!poll) return res.status(404).json('Poll not found');
+
+        // Verify creator
+        if (poll.creator && poll.creator.toString() !== req.user) {
+            return res.status(403).json({ message: "You are not authorized to delete this poll" });
+        }
+
+        await Poll.findByIdAndDelete(req.params.id);
         res.json({ message: 'Poll deleted successfully' });
     } catch (err) {
         res.status(400).json('Error: ' + err);
     }
 });
 
-/**
- * @route   DELETE /api/polls/:id/options/:optionIndex
- * @desc    Remove a specific option from a poll
- */
-router.delete('/:id/options/:optionIndex', async (req, res) => {
+// Remove a specific option from a poll
+router.delete('/:id/options/:optionIndex', auth, async (req, res) => {
     try {
         const poll = await Poll.findById(req.params.id);
         if (!poll) return res.status(404).json('Poll not found');
+
+        // Verify creator
+        if (poll.creator && poll.creator.toString() !== req.user) {
+            return res.status(403).json({ message: "You are not authorized to modify this poll" });
+        }
 
         const index = parseInt(req.params.optionIndex);
         if (isNaN(index) || index < 0 || index >= poll.options.length) {

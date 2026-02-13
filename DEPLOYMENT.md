@@ -27,6 +27,7 @@ Follow these steps to deploy your Polling App worldwide.
 6.  Go to the **Environment** tab and add:
     - `MONGODB_URI`: (Your Atlas Connection String)
     - `PORT`: `5000`
+    - `JWT_SECRET`: (A long random string, e.g., `supersecretkey123`)
     - `FRONTEND_URL`: (You will get this after deploying the frontend, update it later)
 7.  Deploy. Once successful, copy the service URL (e.g., `https://polling-app-backend.onrender.com`).
 
@@ -39,7 +40,7 @@ Follow these steps to deploy your Polling App worldwide.
     - **Framework Preset**: `Create React App`
     - **Root Directory**: `frontend`
 5.  Open **Environment Variables** and add:
-    - `REACT_APP_API_URL`: `https://polling-app-backend.onrender.com/api/polls` (Use your actual backend URL)
+    - `REACT_APP_API_URL`: `https://polling-app-backend.onrender.com/api` (Use your actual backend URL + `/api`)
 6.  Click **Deploy**.
 7.  Once deployed, copy your frontend URL (e.g., `https://polling-app-frontend.vercel.app`).
 

@@ -52,7 +52,9 @@ connectDB();
 
 // Route Registration
 const pollsRouter = require('./routes/polls');
+const authRouter = require('./routes/auth');
 app.use('/api/polls', pollsRouter);
+app.use('/api/auth', authRouter);
 
 // Basic health check route
 app.get('/', (req, res) => {

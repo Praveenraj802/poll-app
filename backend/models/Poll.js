@@ -20,6 +20,10 @@ const PollSchema = new mongoose.Schema({
     },
     options: [OptionSchema], // Array of possible answers
     votedIPs: [String], // Track IPs to prevent multiple voting
+    creator: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    },
     createdAt: {
         type: Date,
         default: Date.now
