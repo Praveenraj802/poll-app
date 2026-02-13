@@ -1,0 +1,12 @@
+{
+    "name": "polling-app-root",
+    "version": "1.0.0",
+    "description": "Root script to run full stack polling app",
+    "scripts": {
+        "install-all": "cd backend && npm.cmd install && cd ../frontend && npm.cmd install",
+        "start": "concurrently \"cd backend && npm.cmd start\" \"cd frontend && npm.cmd start\""
+    },
+    "dependencies": {
+        "concurrently": "^8.2.2"
+    }
+}

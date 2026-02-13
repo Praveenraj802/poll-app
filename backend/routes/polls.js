@@ -1,0 +1,166 @@
+const router = require('express').Router();
+const mongoose = require('mongoose');
+const Poll = require('../models/Poll');
+
+/**
+ * @route   GET /api/polls
+ * @desc    Retrieve all polls from the database, sorted by most recent
+ */
+router.get('/', async (req, res) => {
+    try {
+        const polls = await Poll.find().sort({ createdAt: -1 });
+        res.json(polls);
+    } catch (err) {
+        res.status(400).json('Error: ' + err);
+    }
+});
+
+// Create a new poll
+router.post("/create", async (req, res) => {
+    try {
+        const { question, options } = req.body;
+        console.log("Creating poll with:", { question, options });
+
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).json({
+                message: "Database not connected. Please check your MongoDB Atlas IP Whitelist and connection string."
+            });
+        }
+
+        if (!question || !options || options.length < 2) {
+            return res.status(400).json({ message: "Enter a question and at least 2 options" });
+        }
+
+        // Format options to match the schema (array of { text, votes })
+        const formattedOptions = options.map(opt => ({ text: opt, votes: 0 }));
+
+        const newPoll = new Poll({ question, options: formattedOptions });
+        await newPoll.save();
+
+        res.status(201).json({ message: "Poll created successfully!", poll: newPoll });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+/**
+ * @route   GET /api/polls/:id
+ * @desc    Fetch a single poll by its MongoDB ID
+ */
+router.get('/:id', async (req, res) => {
+    try {
+        const poll = await Poll.findById(req.params.id);
+        res.json(poll);
+    } catch (err) {
+        res.status(400).json('Error: ' + err);
+    }
+});
+
+/**
+ * @route   POST /api/polls/:id/vote
+ * @desc    Increment the vote count for a specific option in a poll
+ */
+router.post('/:id/vote', async (req, res) => {
+    const { optionIndex } = req.body;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    try {
+        const poll = await Poll.findById(req.params.id);
+        if (!poll) return res.status(404).json('Poll not found');
+
+        // Check if this IP has already voted
+        if (poll.votedIPs.includes(ip)) {
+            return res.status(400).json({ message: "You have already voted on this poll." });
+        }
+
+        // Basic validation of the option index
+        if (optionIndex < 0 || optionIndex >= poll.options.length) {
+            return res.status(400).json('Invalid option index');
+        }
+
+        poll.options[optionIndex].votes += 1; // Increment vote
+        poll.votedIPs.push(ip); // Record IP
+        await poll.save();
+
+        res.json(poll); // Return updated poll object
+    } catch (err) {
+        res.status(400).json('Error: ' + err);
+    }
+});
+
+/**
+ * @route   POST /api/polls/:id/remove-vote
+ * @desc    Decrement the vote count for a specific option in a poll
+ */
+router.post('/:id/remove-vote', async (req, res) => {
+    const { optionIndex } = req.body;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    try {
+        const poll = await Poll.findById(req.params.id);
+        if (!poll) return res.status(404).json('Poll not found');
+
+        // Basic validation of the option index
+        if (optionIndex < 0 || optionIndex >= poll.options.length) {
+            return res.status(400).json('Invalid option index');
+        }
+
+        // Decrement vote only if it's greater than 0
+        if (poll.options[optionIndex].votes > 0) {
+            poll.options[optionIndex].votes -= 1;
+        }
+
+        // Remove IP from voted list
+        poll.votedIPs = poll.votedIPs.filter(votedIp => votedIp !== ip);
+
+        await poll.save();
+
+        res.json(poll); // Return updated poll object
+    } catch (err) {
+        res.status(400).json('Error: ' + err);
+    }
+});
+
+/**
+ * @route   DELETE /api/polls/:id
+ * @desc    Delete a poll entirely
+ */
+router.delete('/:id', async (req, res) => {
+    try {
+        const result = await Poll.findByIdAndDelete(req.params.id);
+        if (!result) return res.status(404).json('Poll not found');
+        res.json({ message: 'Poll deleted successfully' });
+    } catch (err) {
+        res.status(400).json('Error: ' + err);
+    }
+});
+
+/**
+ * @route   DELETE /api/polls/:id/options/:optionIndex
+ * @desc    Remove a specific option from a poll
+ */
+router.delete('/:id/options/:optionIndex', async (req, res) => {
+    try {
+        const poll = await Poll.findById(req.params.id);
+        if (!poll) return res.status(404).json('Poll not found');
+
+        const index = parseInt(req.params.optionIndex);
+        if (isNaN(index) || index < 0 || index >= poll.options.length) {
+            return res.status(400).json('Invalid option index');
+        }
+
+        // Must have at least 2 options
+        if (poll.options.length <= 2) {
+            return res.status(400).json({ message: "A poll must have at least 2 options" });
+        }
+
+        poll.options.splice(index, 1);
+        await poll.save();
+        res.json(poll);
+    } catch (err) {
+        res.status(400).json('Error: ' + err);
+    }
+});
+
+module.exports = router;
