@@ -9,9 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware configuration
+const allowedOrigin = (process.env.FRONTEND_URL || '*').replace(/\s/g, '');
+console.log(`📡 CORS Allowed Origin: "[${allowedOrigin}]"`);
+
 app.use(cors({
-  // In production, FRONTEND_URL should be set to your actual frontend domain
-  origin: process.env.FRONTEND_URL || '*',
+  origin: allowedOrigin,
   credentials: true
 }));
 app.use(express.json()); // Parse incoming JSON requests
