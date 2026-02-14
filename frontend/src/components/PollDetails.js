@@ -4,6 +4,10 @@ import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Vote, ArrowLeft, CheckCircle2, Users, Trash2, RotateCcw, Loader2, BarChart, Clock, AlertCircle, Share2, Link, MessageCircle, Twitter } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { io } from 'socket.io-client';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const SOCKET_URL = API_BASE_URL.replace('/api', '');
 
 const PollDetails = () => {
     const { id } = useParams();
@@ -71,6 +75,20 @@ const PollDetails = () => {
 
         fetchPoll();
 
+        // Socket.io Real-time setup
+        console.log("🔌 Connecting to socket at:", SOCKET_URL);
+        const socket = io(SOCKET_URL, {
+            withCredentials: true,
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('voteUpdate', (updatedPoll) => {
+            if (updatedPoll._id === id) {
+                console.log("⚡ Real-time update received for poll:", id);
+                setPoll(updatedPoll);
+            }
+        });
+
         // Update countdown every second
         const timer = setInterval(() => {
             if (poll?.expiresAt) {
@@ -78,7 +96,11 @@ const PollDetails = () => {
             }
         }, 1000);
 
-        return () => clearInterval(timer);
+        return () => {
+            clearInterval(timer);
+            socket.disconnect();
+            console.log("🔌 Socket disconnected");
+        };
     }, [id, poll?.expiresAt]);
 
     const handleVote = async (index) => {

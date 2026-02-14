@@ -4,6 +4,10 @@ import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Vote, Trash2, Plus, ArrowRight, BarChart3, Loader2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { io } from 'socket.io-client';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const SOCKET_URL = API_BASE_URL.replace('/api', '');
 
 const PollList = () => {
     const [polls, setPolls] = useState([]);
@@ -40,6 +44,19 @@ const PollList = () => {
 
     useEffect(() => {
         fetchPolls();
+
+        const socket = io(SOCKET_URL, {
+            withCredentials: true,
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('voteUpdate', (updatedPoll) => {
+            setPolls(prevPolls =>
+                prevPolls.map(p => p._id === updatedPoll._id ? updatedPoll : p)
+            );
+        });
+
+        return () => socket.disconnect();
     }, []);
 
     const handleDelete = async (e, id) => {

@@ -105,6 +105,11 @@ router.post('/:id/vote', async (req, res) => {
         poll.votedIPs.push(ip); // Record IP
         await poll.save();
 
+        // Emit real-time update
+        if (req.io) {
+            req.io.emit('voteUpdate', poll);
+        }
+
         res.json(poll); // Return updated poll object
     } catch (err) {
         res.status(400).json('Error: ' + err);
@@ -137,6 +142,11 @@ router.post('/:id/remove-vote', async (req, res) => {
         poll.votedIPs = poll.votedIPs.filter(votedIp => votedIp !== ip);
 
         await poll.save();
+
+        // Emit real-time update
+        if (req.io) {
+            req.io.emit('voteUpdate', poll);
+        }
 
         res.json(poll); // Return updated poll object
     } catch (err) {

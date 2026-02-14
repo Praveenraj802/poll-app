@@ -5,7 +5,11 @@ const dns = require('node:dns');
 dns.setDefaultResultOrder('ipv4first');
 require('dotenv').config(); // Load environment variables from .env file
 
+const http = require('http');
+const { Server } = require('socket.io');
+
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
 // Middleware configuration
@@ -16,7 +20,22 @@ app.use(cors({
   origin: allowedOrigin,
   credentials: true
 }));
+
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigin,
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
 app.use(express.json()); // Parse incoming JSON requests
+
+// Attach socket.io to request object so it can be used in routes
+app.use((req, res, next) => {
+  req.io = io;
+  next();
+});
 
 // Request Logger
 app.use((req, res, next) => {
@@ -50,6 +69,15 @@ async function connectDB() {
 
 connectDB();
 
+// Socket.io connection handling
+io.on('connection', (socket) => {
+  console.log('⚡ User connected:', socket.id);
+
+  socket.on('disconnect', () => {
+    console.log('❌ User disconnected');
+  });
+});
+
 // Route Registration
 const pollsRouter = require('./routes/polls');
 const authRouter = require('./routes/auth');
@@ -61,10 +89,10 @@ app.use('/api/auth-otp', authOTPRouter); // NEW: OTP-based auth
 
 // Basic health check route
 app.get('/', (req, res) => {
-  res.send('Polling App API is running');
+  res.send('Polling App API is running with Socket.io');
 });
 
 // Start the server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
 });
