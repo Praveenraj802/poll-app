@@ -19,8 +19,28 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'Password must be at least 6 characters' });
         }
 
-        const existingUser = await User.findOne({ email });
+        const existingUser = await User.findOne({ email }).select('+password');
+
         if (existingUser) {
+            // If user exists but has no password (from OTP phase), let them set it
+            if (!existingUser.password) {
+                const salt = await bcrypt.genSalt(10);
+                const passwordHash = await bcrypt.hash(password, salt);
+
+                existingUser.password = passwordHash;
+                if (username) existingUser.username = username;
+                await existingUser.save();
+
+                const token = jwt.sign({ id: existingUser._id }, process.env.JWT_SECRET);
+                return res.json({
+                    token,
+                    user: {
+                        id: existingUser._id,
+                        username: existingUser.username,
+                        email: existingUser.email
+                    }
+                });
+            }
             return res.status(400).json({ message: 'User with this email already exists' });
         }
 
@@ -61,14 +81,18 @@ router.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Please enter all fields' });
         }
 
-        const user = await User.findOne({ email });
+        const user = await User.findOne({ email }).select('+password');
         if (!user) {
             return res.status(400).json({ message: 'No account with this email has been registered' });
         }
 
+        if (!user.password) {
+            return res.status(400).json({ message: 'Your account was created via OTP. Please go to the Register page and set a password to log in.' });
+        }
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ message: 'Invalid credentials. Please check your password.' });
         }
 
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
