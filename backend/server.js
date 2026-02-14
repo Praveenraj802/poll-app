@@ -53,8 +53,11 @@ connectDB();
 // Route Registration
 const pollsRouter = require('./routes/polls');
 const authRouter = require('./routes/auth');
+const authOTPRouter = require('./routes/authOTP'); // NEW: OTP Authentication
 app.use('/api/polls', pollsRouter);
-app.use('/api/auth', authRouter);
+app.use('/api/auth', authRouter); // Legacy password-based auth
+app.use('/api/auth-otp', authOTPRouter); // NEW: OTP-based auth
+
 
 // Basic health check route
 app.get('/', (req, res) => {

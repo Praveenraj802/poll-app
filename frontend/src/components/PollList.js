@@ -2,13 +2,30 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Vote, Trash2, Plus, ArrowRight, BarChart3, Loader2 } from 'lucide-react';
+import { Vote, Trash2, Plus, ArrowRight, BarChart3, Loader2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const PollList = () => {
     const [polls, setPolls] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
+
+    const getTimeRemaining = (expiresAt) => {
+        if (!expiresAt) return null;
+        const now = new Date();
+        const expiry = new Date(expiresAt);
+        const diff = expiry - now;
+
+        if (diff <= 0) return 'Expired';
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const days = Math.floor(hours / 24);
+
+        if (days > 0) return `${days}d left`;
+        if (hours > 0) return `${hours}h left`;
+        return `${minutes}m left`;
+    };
 
     const fetchPolls = async () => {
         try {
@@ -105,6 +122,15 @@ const PollList = () => {
                                         <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-2xl">
                                             <BarChart3 className="text-blue-600" size={24} />
                                         </div>
+                                        {poll.expiresAt && (
+                                            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${getTimeRemaining(poll.expiresAt) === 'Expired'
+                                                ? 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400'
+                                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                                                }`}>
+                                                <Clock size={12} />
+                                                {getTimeRemaining(poll.expiresAt)}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 line-clamp-2 leading-snug group-hover:text-blue-600 transition-colors">
@@ -122,7 +148,7 @@ const PollList = () => {
                                         <span className="text-xs font-bold uppercase tracking-wider text-blue-600/60 dark:text-blue-400/60">
                                             View Results
                                         </span>
-                                        {user && poll.creator === user.id && (
+                                        {user && poll.creator && (String(poll.creator) === String(user.id) || String(poll.creator) === String(user._id)) && (
                                             <button
                                                 onClick={(e) => handleDelete(e, poll._id)}
                                                 className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"

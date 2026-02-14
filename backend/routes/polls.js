@@ -19,8 +19,8 @@ router.get('/', async (req, res) => {
 // Create a new poll
 router.post("/create", auth, async (req, res) => {
     try {
-        const { question, options } = req.body;
-        console.log("Creating poll with:", { question, options });
+        const { question, options, expiresIn } = req.body; // expiresIn is in hours
+        console.log("Creating poll with:", { question, options, expiresIn });
 
         if (mongoose.connection.readyState !== 1) {
             return res.status(503).json({
@@ -32,13 +32,21 @@ router.post("/create", auth, async (req, res) => {
             return res.status(400).json({ message: "Enter a question and at least 2 options" });
         }
 
+        // Calculate expiry date
+        let expiresAt = null;
+        if (expiresIn && expiresIn > 0) {
+            expiresAt = new Date();
+            expiresAt.setHours(expiresAt.getHours() + parseInt(expiresIn));
+        }
+
         // Format options to match the schema (array of { text, votes })
         const formattedOptions = options.map(opt => ({ text: opt, votes: 0 }));
 
         const newPoll = new Poll({
             question,
             options: formattedOptions,
-            creator: req.user // From auth middleware
+            creator: req.user, // From auth middleware
+            expiresAt
         });
         await newPoll.save();
 
@@ -73,6 +81,15 @@ router.post('/:id/vote', async (req, res) => {
     try {
         const poll = await Poll.findById(req.params.id);
         if (!poll) return res.status(404).json('Poll not found');
+
+        // Check if poll is expired or inactive
+        if (poll.expiresAt && new Date() > poll.expiresAt) {
+            return res.status(400).json({ message: "Voting is now closed for this poll." });
+        }
+
+        if (!poll.isActive) {
+            return res.status(400).json({ message: "This poll is no longer active." });
+        }
 
         // Check if this IP has already voted
         if (poll.votedIPs.includes(ip)) {
@@ -134,7 +151,7 @@ router.delete('/:id', auth, async (req, res) => {
         if (!poll) return res.status(404).json('Poll not found');
 
         // Verify creator
-        if (poll.creator && poll.creator.toString() !== req.user) {
+        if (!poll.creator || poll.creator.toString() !== String(req.user)) {
             return res.status(403).json({ message: "You are not authorized to delete this poll" });
         }
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Vote, ArrowLeft, CheckCircle2, Users, Trash2, RotateCcw, Loader2, BarChart } from 'lucide-react';
+import { Vote, ArrowLeft, CheckCircle2, Users, Trash2, RotateCcw, Loader2, BarChart, Clock, AlertCircle, Share2, Link, MessageCircle, Twitter } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const PollDetails = () => {
@@ -14,12 +14,48 @@ const PollDetails = () => {
     const [voted, setVoted] = useState(false);
     const [selectedOption, setSelectedOption] = useState(null);
     const [isVoting, setIsVoting] = useState(false);
+    const [timeLeft, setTimeLeft] = useState(null);
+    const [copySuccess, setCopySuccess] = useState(false);
+
+    const shareUrl = window.location.href;
+    const shareText = `Vote on this poll: ${poll?.question}`;
+
+    const handleCopyLink = () => {
+        navigator.clipboard.writeText(shareUrl);
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+    };
+
+    const shareLinks = {
+        whatsapp: `https://wa.me/?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`,
+        twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`,
+    };
+
+    const getTimeRemaining = (expiresAt) => {
+        if (!expiresAt) return null;
+        const now = new Date();
+        const expiry = new Date(expiresAt);
+        const diff = expiry - now;
+
+        if (diff <= 0) return 'Expired';
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        const days = Math.floor(hours / 24);
+
+        if (days > 0) return `${days}d ${hours % 24}h remaining`;
+        if (hours > 0) return `${hours}h ${minutes}m remaining`;
+        if (minutes > 0) return `${minutes}m ${seconds}s remaining`;
+        return `${seconds}s remaining`;
+    };
 
     useEffect(() => {
         const fetchPoll = async () => {
             try {
                 const res = await api.get(`/polls/${id}`);
                 setPoll(res.data);
+                setTimeLeft(getTimeRemaining(res.data.expiresAt));
 
                 const votedPolls = JSON.parse(localStorage.getItem('voted_polls') || '{}');
                 if (votedPolls[id] !== undefined) {
@@ -32,8 +68,18 @@ const PollDetails = () => {
                 setLoading(false);
             }
         };
+
         fetchPoll();
-    }, [id]);
+
+        // Update countdown every second
+        const timer = setInterval(() => {
+            if (poll?.expiresAt) {
+                setTimeLeft(getTimeRemaining(poll.expiresAt));
+            }
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [id, poll?.expiresAt]);
 
     const handleVote = async (index) => {
         setIsVoting(true);
@@ -87,6 +133,20 @@ const PollDetails = () => {
         }
     };
 
+    const handleDeletePoll = async () => {
+        if (!window.confirm('PERMANENTLY DELETE POLL?\n\nThis action cannot be undone.')) return;
+
+        setLoading(true);
+        try {
+            await api.delete(`/polls/${id}`);
+            navigate('/');
+        } catch (err) {
+            console.error(err);
+            alert(err.response?.data?.message || 'Error deleting poll');
+            setLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
@@ -117,13 +177,37 @@ const PollDetails = () => {
             >
                 <div className="p-10 md:p-14">
                     <div className="flex flex-wrap items-center gap-3 mb-6">
-                        <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider border border-blue-100 dark:border-blue-900/50">
-                            Active Poll
-                        </span>
-                        <div className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500 text-sm font-medium">
+                        {timeLeft === 'Expired' ? (
+                            <span className="bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider border border-red-100 dark:border-red-900/50 flex items-center gap-1.5">
+                                <AlertCircle size={14} />
+                                Closed
+                            </span>
+                        ) : (
+                            <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider border border-blue-100 dark:border-blue-900/50">
+                                Active Poll
+                            </span>
+                        )}
+
+                        {timeLeft && timeLeft !== 'Expired' && (
+                            <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 text-sm font-bold bg-amber-50 dark:bg-amber-900/10 px-3 py-1 rounded-lg">
+                                <Clock size={16} />
+                                {timeLeft}
+                            </div>
+                        )}
+                        <div className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500 text-sm font-medium ml-auto">
                             <Users size={16} />
                             {totalVotes} participants
                         </div>
+
+                        {user && poll.creator && (String(poll.creator) === String(user.id) || String(poll.creator) === String(user._id)) && (
+                            <button
+                                onClick={handleDeletePoll}
+                                className="ml-4 flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-xl text-xs font-bold transition-all border border-red-100"
+                            >
+                                <Trash2 size={14} />
+                                Delete Poll
+                            </button>
+                        )}
                     </div>
 
                     <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white mb-10 leading-tight">
@@ -199,11 +283,15 @@ const PollDetails = () => {
                                     {poll.options.map((opt, i) => (
                                         <button
                                             key={i}
-                                            disabled={isVoting}
+                                            disabled={isVoting || timeLeft === 'Expired'}
                                             onClick={() => handleVote(i)}
-                                            className="group relative flex items-center justify-between p-6 bg-gray-50 dark:bg-gray-700/30 hover:bg-white dark:hover:bg-gray-700 border-2 border-transparent hover:border-blue-500 rounded-[1.5rem] transition-all text-left shadow-sm hover:shadow-xl hover:shadow-blue-500/10"
+                                            className={`group relative flex items-center justify-between p-6 rounded-[1.5rem] transition-all text-left shadow-sm border-2 
+                                                ${timeLeft === 'Expired'
+                                                    ? 'bg-gray-50 dark:bg-gray-800/50 border-transparent cursor-not-allowed grayscale-[0.5]'
+                                                    : 'bg-gray-50 dark:bg-gray-700/30 hover:bg-white dark:hover:bg-gray-700 border-transparent hover:border-blue-500 hover:shadow-xl hover:shadow-blue-500/10'
+                                                }`}
                                         >
-                                            <span className="text-lg font-bold text-gray-800 dark:text-gray-200 group-hover:text-blue-600 transition-colors">
+                                            <span className={`text-lg font-bold transition-colors ${timeLeft === 'Expired' ? 'text-gray-400' : 'text-gray-800 dark:text-gray-200 group-hover:text-blue-600'}`}>
                                                 {opt.text}
                                             </span>
                                             <div className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-gray-100 dark:border-gray-600 group-hover:bg-blue-600 group-hover:border-blue-600 transition-all">
@@ -226,9 +314,57 @@ const PollDetails = () => {
                             )}
                         </AnimatePresence>
                     </div>
-                </div>
-            </motion.div>
-        </div>
+
+                    {/* SHARE SECTION */}
+                    <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl text-blue-600">
+                                    <Share2 size={24} />
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-gray-900 dark:text-white">Share this Poll</h4>
+                                    <p className="text-sm text-gray-500">Get more people to participate!</p>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    onClick={handleCopyLink}
+                                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all border-2 ${copySuccess
+                                        ? 'bg-emerald-50 border-emerald-500 text-emerald-600'
+                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-blue-500 hover:text-blue-600'
+                                        }`}
+                                >
+                                    {copySuccess ? <CheckCircle2 size={18} /> : <Link size={18} />}
+                                    {copySuccess ? 'Copied!' : 'Copy Link'}
+                                </button>
+
+                                <a
+                                    href={shareLinks.whatsapp}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl transition-all shadow-lg shadow-emerald-500/20"
+                                    title="Share on WhatsApp"
+                                >
+                                    <MessageCircle size={24} />
+                                </a>
+
+                                <a
+                                    href={shareLinks.twitter}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-2.5 bg-black hover:bg-gray-800 text-white rounded-xl transition-all shadow-lg shadow-gray-500/20"
+                                    title="Share on X (Twitter)"
+                                >
+                                    <Twitter size={24} />
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div >
+            </motion.div >
+        </div >
     );
 };
 
