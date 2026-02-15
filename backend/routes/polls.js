@@ -19,8 +19,8 @@ router.get('/', async (req, res) => {
 // Create a new poll
 router.post("/create", auth, async (req, res) => {
     try {
-        const { question, options, expiresIn } = req.body; // expiresIn is in hours
-        console.log("Creating poll with:", { question, options, expiresIn });
+        const { question, options, expiresIn, autoDelete } = req.body; // expiresIn is in hours
+        console.log("Creating poll with:", { question, options, expiresIn, autoDelete });
 
         if (mongoose.connection.readyState !== 1) {
             return res.status(503).json({
@@ -42,11 +42,18 @@ router.post("/create", auth, async (req, res) => {
         // Format options to match the schema (array of { text, votes })
         const formattedOptions = options.map(opt => ({ text: opt, votes: 0 }));
 
+        // Set auto-deletion date if requested
+        let deleteAt = null;
+        if (autoDelete && expiresAt) {
+            deleteAt = expiresAt;
+        }
+
         const newPoll = new Poll({
             question,
             options: formattedOptions,
             creator: req.user, // From auth middleware
-            expiresAt
+            expiresAt,
+            deleteAt
         });
         await newPoll.save();
 

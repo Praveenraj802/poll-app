@@ -9,6 +9,7 @@ const CreatePoll = () => {
     const [question, setQuestion] = useState('');
     const [options, setOptions] = useState(['', '']);
     const [expiresIn, setExpiresIn] = useState('24'); // default 24 hours
+    const [autoDelete, setAutoDelete] = useState(false);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -54,7 +55,7 @@ const CreatePoll = () => {
 
         setLoading(true);
         try {
-            await api.post('/polls/create', { question, options, expiresIn });
+            await api.post('/polls/create', { question, options, expiresIn, autoDelete });
             navigate('/');
         } catch (err) {
             console.error(err);
@@ -183,6 +184,20 @@ const CreatePoll = () => {
                                 </span>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/30">
+                        <input
+                            type="checkbox"
+                            id="autoDelete"
+                            checked={autoDelete}
+                            onChange={(e) => setAutoDelete(e.target.checked)}
+                            disabled={expiresIn === '0'}
+                            className="w-5 h-5 text-red-600 rounded focus:ring-red-500 border-gray-300 dark:border-gray-600 disabled:opacity-50"
+                        />
+                        <label htmlFor="autoDelete" className={`font-medium cursor-pointer ${expiresIn === '0' ? 'text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                            Automatically delete this poll when it expires (Cannot be undone)
+                        </label>
                     </div>
 
                     <div className="pt-4 border-t border-gray-100 dark:border-gray-700">

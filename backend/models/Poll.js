@@ -29,6 +29,11 @@ const PollSchema = new mongoose.Schema({
         type: Date,
         default: null // null means no expiry
     },
+    deleteAt: {
+        type: Date,
+        default: null,
+        index: { expires: 0 } // Document will be automatically deleted when this time is reached
+    },
     isActive: {
         type: Boolean,
         default: true
